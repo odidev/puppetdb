@@ -1,5 +1,5 @@
 PUPPERWARE_ANALYTICS_STREAM ?= dev
-NAMESPACE ?= puppet
+NAMESPACE ?= abhay900
 git_describe = $(shell git describe)
 vcs_ref := $(shell git rev-parse HEAD)
 build_date := $(shell date -u +%FT%T)
@@ -75,9 +75,9 @@ test: prep
 		bundle exec --gemfile $$GEMFILE rspec spec
 
 push-image: prep
-	@docker push puppet/puppetdb:$(VERSION)
+	docker buildx build --platform linux/arm64,linux/amd64 -t $(NAMESPACE)/puppetdb:$(VERSION) -f puppetdb/Dockerfile --push $(PWD)/..
 ifeq ($(IS_LATEST),true)
-	@docker push puppet/puppetdb:$(LATEST_VERSION)
+	docker buildx build --platform linux/arm64,linux/amd64 -t $(NAMESPACE)/puppetdb:$(LATEST_VERSION) -f puppetdb/Dockerfile --push $(PWD)/..
 endif
 
 push-readme:
@@ -86,7 +86,7 @@ push-readme:
 		-v $(PWD)/README.md:/data/README.md \
 		-e DOCKERHUB_USERNAME="$(DOCKERHUB_USERNAME)" \
 		-e DOCKERHUB_PASSWORD="$(DOCKERHUB_PASSWORD)" \
-		-e DOCKERHUB_REPO_PREFIX=puppet \
+		-e DOCKERHUB_REPO_PREFIX=abhay900 \
 		-e DOCKERHUB_REPO_NAME=puppetdb \
 		sheogorath/readme-to-dockerhub
 
