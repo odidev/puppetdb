@@ -1,4 +1,4 @@
-NAMESPACE ?= puppet
+NAMESPACE ?=odidev
 git_describe = $(shell git describe)
 vcs_ref := $(shell git rev-parse HEAD)
 build_date := $(shell date -u +%FT%T)
@@ -77,9 +77,9 @@ test: prep
 		rspec --options puppetserver/.rspec spec
 
 push-image: prep
-	@docker push puppet/puppetserver:$(VERSION)
+	docker buildx build --platform linux/arm64,linux/amd64 -t $(NAMESPACE)/puppetserver:$(VERSION) -f puppetserver/Dockerfile --push $(PWD)/..
 ifeq ($(IS_LATEST),true)
-	@docker push puppet/puppetserver:$(LATEST_VERSION)
+	docker buildx build --platform linux/arm64,linux/amd64 -t $(NAMESPACE)/puppetserver:$(LATEST_VERSION) -f puppetserver/Dockerfile --push $(PWD)/..
 endif
 
 push-readme:
@@ -88,7 +88,7 @@ push-readme:
 		-v $(PWD)/puppetserver/README.md:/data/README.md \
 		-e DOCKERHUB_USERNAME="$(DOCKERHUB_USERNAME)" \
 		-e DOCKERHUB_PASSWORD="$(DOCKERHUB_PASSWORD)" \
-		-e DOCKERHUB_REPO_PREFIX=puppet \
+		-e DOCKERHUB_REPO_PREFIX=odidev \
 		-e DOCKERHUB_REPO_NAME=puppetserver \
 		sheogorath/readme-to-dockerhub
 

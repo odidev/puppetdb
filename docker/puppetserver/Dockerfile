@@ -8,8 +8,8 @@ ARG UBUNTU_CODENAME=bionic
 FROM ubuntu:18.04 as base
 
 ARG PACKAGES=ca-certificates\ git
-ARG DUMB_INIT_VERSION="1.2.2"
-
+ARG DUMB_INIT_VERSION="1.2.5"
+ARG TARGETARCH
 LABEL org.label-schema.maintainer="Puppet Release Team <release@puppet.com>" \
       org.label-schema.vendor="Puppet" \
       org.label-schema.url="https://github.com/puppetlabs/puppetserver" \
@@ -47,7 +47,7 @@ EXPOSE 8140
 ENTRYPOINT ["dumb-init", "/docker-entrypoint.sh"]
 CMD ["foreground"]
 
-ADD https://github.com/Yelp/dumb-init/releases/download/v"$DUMB_INIT_VERSION"/dumb-init_"$DUMB_INIT_VERSION"_amd64.deb /
+ADD https://github.com/Yelp/dumb-init/releases/download/v"$DUMB_INIT_VERSION"/dumb-init_"$DUMB_INIT_VERSION"_${TARGETARCH}.deb /
 
 COPY docker/puppetserver/docker-entrypoint.sh \
      docker/puppetserver/healthcheck.sh \
@@ -58,17 +58,19 @@ HEALTHCHECK --interval=20s --timeout=15s --retries=12 --start-period=3m CMD ["/h
 
 # no need to pin versions or clear apt cache as its still being used
 # hadolint ignore=DL3008,DL3009
-RUN chmod +x /docker-entrypoint.sh /healthcheck.sh /docker-entrypoint.d/*.sh && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends $PACKAGES && \
-    dpkg -i dumb-init_"$DUMB_INIT_VERSION"_amd64.deb && \
-    rm dumb-init_"$DUMB_INIT_VERSION"_amd64.deb
-
+RUN   chmod +x /docker-entrypoint.sh /healthcheck.sh /docker-entrypoint.d/*.sh && \
+      apt-get update && \
+      apt-get install -y --no-install-recommends $PACKAGES && \
+      dpkg -i dumb-init_"$DUMB_INIT_VERSION"_${TARGETARCH}.deb && \
+      rm dumb-init_"$DUMB_INIT_VERSION"_${TARGETARCH}.deb 
+    
 ######################################################
 # edge (build from source)
 ######################################################
 
 FROM ubuntu:18.04 as build
+
+ARG TARGETARCH
 
 ENV LANG="en_US.UTF-8"
 
@@ -100,7 +102,7 @@ ENV RUBYOPT=-r/puppetserver/docker/ruby-docker-copy-patch
 
 RUN lein clean && \
     lein install && \
-    EZBAKE_ALLOW_UNREPRODUCIBLE_BUILDS=true EZBAKE_NODEPLOY=true COW=base-bionic-amd64.cow MOCK='' GEM_SOURCE=https://rubygems.org lein with-profile ezbake ezbake local-build && \
+    EZBAKE_ALLOW_UNREPRODUCIBLE_BUILDS=true EZBAKE_NODEPLOY=true COW=base-bionic-${TARGETARCH}.cow MOCK='' GEM_SOURCE=https://rubygems.org lein with-profile ezbake ezbake local-build && \
     mv /puppetserver/output/deb/bionic/*/*.deb /puppetserver.deb
 
 FROM base as edge
@@ -110,7 +112,6 @@ COPY --from=build /puppetserver.deb /puppetserver.deb
 ARG UBUNTU_CODENAME
 ARG install_path=/puppetserver.deb
 ARG deb_uri=http://nightlies.puppet.com/apt/puppet6-nightly-release-$UBUNTU_CODENAME.deb
-
 ######################################################
 # release (build from packages)
 ######################################################
@@ -140,14 +141,14 @@ ARG deb_uri
 # published images should use "production" for this build_arg
 ARG pupperware_analytics_stream="dev"
 
-# hadolint ignore=DL3020
-ADD $deb_uri /puppet.deb
+# hadolint ignore=DL3020ADD 
+#ADD $deb_uri /puppet6-release-bionic.deb
+ADD https://apt.puppetlabs.com/puppet6-release-bionic.deb /puppet6-release-bionic.deb
 
-# hadolint ignore=DL3008,DL3028
-RUN dpkg -i /puppet.deb && \
-    rm /puppet.deb && \
+RUN dpkg -i /puppet6-release-bionic.deb &&\
+    rm /puppet6-release-bionic.deb && \
     apt-get update && \
-    apt-get install --no-install-recommends -y $install_path puppetdb-termini && \
+    apt-get install --no-install-recommends -y /puppetserver.deb puppetdb-termini && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     gem install --no-rdoc --no-ri r10k && \
