@@ -9,8 +9,8 @@ ARG LOGDIR=/opt/puppetlabs/server/data/puppetdb/logs
 ######################################################
 
 FROM ubuntu:18.04 as base
-
-ARG DUMB_INIT_VERSION="1.2.2"
+ARG TARGETARCH
+ARG DUMB_INIT_VERSION="1.2.5"
 ARG LOGDIR
 
 ENV PUPPERWARE_ANALYTICS_ENABLED=false \
@@ -60,7 +60,7 @@ HEALTHCHECK --start-period=5m --interval=10s --timeout=10s --retries=6 CMD ["/he
 ADD https://raw.githubusercontent.com/puppetlabs/pupperware/1c8d5f7fdcf2a81dfaf34f5ee34435cc50526d35/gem/lib/pupperware/compose-services/pe-postgres-custom/00-ssl.sh /ssl.sh
 # hadolint ignore=DL3020
 ADD https://raw.githubusercontent.com/puppetlabs/wtfc/6aa5eef89728cc2903490a618430cc3e59216fa8/wtfc.sh \
-    https://github.com/Yelp/dumb-init/releases/download/v"$DUMB_INIT_VERSION"/dumb-init_"$DUMB_INIT_VERSION"_amd64.deb \
+    https://github.com/Yelp/dumb-init/releases/download/v"$DUMB_INIT_VERSION"/dumb-init_"$DUMB_INIT_VERSION"_${TARGETARCH}.deb \
     docker/puppetdb/docker-entrypoint.sh \
     docker/puppetdb/healthcheck.sh \
     /
@@ -71,13 +71,14 @@ COPY docker/puppetdb/docker-entrypoint.d /docker-entrypoint.d
 RUN apt-get update && \
     apt-get install --no-install-recommends -y ca-certificates curl dnsutils netcat && \
     chmod +x /ssl.sh /wtfc.sh /docker-entrypoint.sh /healthcheck.sh /docker-entrypoint.d/*.sh && \
-    dpkg -i dumb-init_"$DUMB_INIT_VERSION"_amd64.deb
+    dpkg -i dumb-init_"$DUMB_INIT_VERSION"_${TARGETARCH}.deb
 
 ######################################################
 # edge (build from source)
 ######################################################
 
 FROM ubuntu:18.04 as build
+ARG TARGETARCH
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
             language-pack-en \
@@ -104,7 +105,7 @@ WORKDIR /puppetdb
 # https://github.com/docker/for-linux/issues/1015
 ENV RUBYOPT=-r/puppetdb/docker/ruby-docker-copy-patch
 RUN lein clean && lein install && \
-    EZBAKE_ALLOW_UNREPRODUCIBLE_BUILDS=true EZBAKE_NODEPLOY=true COW=base-bionic-amd64.cow MOCK='' GEM_SOURCE=https://rubygems.org lein with-profile ezbake ezbake local-build && \
+    EZBAKE_ALLOW_UNREPRODUCIBLE_BUILDS=true EZBAKE_NODEPLOY=true COW=base-bionic-${TARGETARCH}.cow MOCK='' GEM_SOURCE=https://rubygems.org lein with-profile ezbake ezbake local-build && \
     mv /puppetdb/output/deb/bionic/*/*.deb /puppetdb.deb
 
 FROM base as edge
@@ -146,12 +147,12 @@ ARG pupperware_analytics_stream="dev"
 ARG LOGDIR
 
 # hadolint ignore=DL3020
-ADD $deb_uri /puppet.deb
+ADD https://apt.puppetlabs.com/puppet6-release-bionic.deb /puppet6-release-bionic.deb
 
-RUN dpkg -i /puppet.deb && \
-    rm /puppet.deb && \
+RUN dpkg -i /puppet6-release-bionic.deb && \
+    rm /puppet6-release-bionic.deb && \
     apt-get update && \
-    apt-get install --no-install-recommends -y $install_path && \
+    apt-get install --no-install-recommends -y /puppetdb.deb && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir -p "$LOGDIR" && \
