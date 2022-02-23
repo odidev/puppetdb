@@ -53,7 +53,6 @@ endif
 
 build: prep
 	docker buildx build \
-		${DOCKER_BUILD_FLAGS} \
 		--load \
 		--pull \
 		--build-arg build_type=$(BUILD_TYPE) \
@@ -86,7 +85,7 @@ push-readme:
 		-v $(PWD)/README.md:/data/README.md \
 		-e DOCKERHUB_USERNAME="$(DOCKERHUB_USERNAME)" \
 		-e DOCKERHUB_PASSWORD="$(DOCKERHUB_PASSWORD)" \
-		-e DOCKERHUB_REPO_PREFIX=puppet \
+		-e DOCKERHUB_REPO_PREFIX=odidev \
 		-e DOCKERHUB_REPO_NAME=puppetdb \
 		sheogorath/readme-to-dockerhub
 
